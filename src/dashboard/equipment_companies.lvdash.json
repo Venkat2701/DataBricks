@@ -1,0 +1,451 @@
+{
+  "datasets": [
+    {
+      "name": "ds_company",
+      "displayName": "Companies",
+      "queryLines": [
+        "SELECT brand, company_name, website, ",
+        "coalesce(hq_address, 'Not published on website') AS hq_location, ",
+        "coalesce(phone, 'Not published on website') AS phone, ",
+        "coalesce(CAST(founded_year AS STRING), '-') AS founded, ",
+        "data_note ",
+        "FROM equipmentcompanies.gold.dim_company ",
+        "ORDER BY brand"
+      ]
+    },
+    {
+      "name": "ds_locations",
+      "displayName": "HQ locations",
+      "queryLines": [
+        "SELECT brand, company_name, hq_address, phone, latitude, longitude ",
+        "FROM equipmentcompanies.gold.dim_company ",
+        "WHERE latitude IS NOT NULL AND longitude IS NOT NULL"
+      ]
+    },
+    {
+      "name": "ds_categories",
+      "displayName": "Product categories",
+      "queryLines": [
+        "SELECT brand, segment, category, product_pages, ",
+        "product_pages / SUM(product_pages) OVER (PARTITION BY brand) AS share_of_company ",
+        "FROM equipmentcompanies.gold.company_categories ",
+        "WHERE category <> 'Attachments'"
+      ]
+    },
+    {
+      "name": "ds_electric",
+      "displayName": "Electric products",
+      "queryLines": [
+        "SELECT brand, product_name, category, segment, url ",
+        "FROM equipmentcompanies.gold.electric_products"
+      ]
+    },
+    {
+      "name": "ds_tech",
+      "displayName": "Technology mentions",
+      "queryLines": [
+        "SELECT brand, theme, pct_pages / 100 AS share_of_pages ",
+        "FROM equipmentcompanies.gold.tech_mentions ",
+        "WHERE has_data"
+      ]
+    },
+    {
+      "name": "ds_news",
+      "displayName": "News per year",
+      "queryLines": [
+        "SELECT brand, make_date(year, 1, 1) AS year_start, news_pages, ",
+        "CASE WHEN year = year(current_date()) THEN news_pages ELSE 0 END AS news_this_year ",
+        "FROM equipmentcompanies.gold.news_by_year"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "overview",
+      "displayName": "Overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "multilineTextboxSpec": {"lines": ["# Equipment Companies Dashboard"]}
+          },
+          "position": {"x": 0, "y": 0, "width": 12, "height": 1}
+        },
+        {
+          "widget": {
+            "name": "subtitle",
+            "multilineTextboxSpec": {
+              "lines": [
+                "15 US equipment manufacturers, compared using what their own websites publish. ",
+                "Data: equipmentcompanies.gold, built by the equipment_companies_pipeline job."
+              ]
+            }
+          },
+          "position": {"x": 0, "y": 1, "width": 12, "height": 1}
+        },
+        {
+          "widget": {
+            "name": "filter_brand",
+            "queries": [
+              {"name": "fq_company", "query": {"datasetName": "ds_company", "fields": [{"name": "brand", "expression": "`brand`"}], "disaggregated": false}},
+              {"name": "fq_locations", "query": {"datasetName": "ds_locations", "fields": [{"name": "brand", "expression": "`brand`"}], "disaggregated": false}},
+              {"name": "fq_categories", "query": {"datasetName": "ds_categories", "fields": [{"name": "brand", "expression": "`brand`"}], "disaggregated": false}},
+              {"name": "fq_electric", "query": {"datasetName": "ds_electric", "fields": [{"name": "brand", "expression": "`brand`"}], "disaggregated": false}},
+              {"name": "fq_tech", "query": {"datasetName": "ds_tech", "fields": [{"name": "brand", "expression": "`brand`"}], "disaggregated": false}},
+              {"name": "fq_news", "query": {"datasetName": "ds_news", "fields": [{"name": "brand", "expression": "`brand`"}], "disaggregated": false}}
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {"fieldName": "brand", "displayName": "Company", "queryName": "fq_company"},
+                  {"fieldName": "brand", "displayName": "Company", "queryName": "fq_locations"},
+                  {"fieldName": "brand", "displayName": "Company", "queryName": "fq_categories"},
+                  {"fieldName": "brand", "displayName": "Company", "queryName": "fq_electric"},
+                  {"fieldName": "brand", "displayName": "Company", "queryName": "fq_tech"},
+                  {"fieldName": "brand", "displayName": "Company", "queryName": "fq_news"}
+                ]
+              },
+              "frame": {"showTitle": true, "title": "Company"}
+            }
+          },
+          "position": {"x": 0, "y": 2, "width": 6, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "filter_segment",
+            "queries": [
+              {"name": "fq_seg_categories", "query": {"datasetName": "ds_categories", "fields": [{"name": "segment", "expression": "`segment`"}], "disaggregated": false}},
+              {"name": "fq_seg_electric", "query": {"datasetName": "ds_electric", "fields": [{"name": "segment", "expression": "`segment`"}], "disaggregated": false}}
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {"fieldName": "segment", "displayName": "Segment", "queryName": "fq_seg_categories"},
+                  {"fieldName": "segment", "displayName": "Segment", "queryName": "fq_seg_electric"}
+                ]
+              },
+              "frame": {"showTitle": true, "title": "Segment", "showDescription": true, "description": "Applies to the portfolio heatmap and electric products"}
+            }
+          },
+          "position": {"x": 6, "y": 2, "width": 6, "height": 2}
+        },
+        {
+          "widget": {
+            "name": "kpi_companies",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_company", "fields": [{"name": "count(brand)", "expression": "COUNT(`brand`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "count(brand)", "displayName": "Companies"}},
+              "frame": {"showTitle": true, "title": "Companies"}
+            }
+          },
+          "position": {"x": 0, "y": 4, "width": 2, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi_located",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_locations", "fields": [{"name": "count(brand)", "expression": "COUNT(`brand`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "count(brand)", "displayName": "HQ found"}},
+              "frame": {"showTitle": true, "title": "HQ found on website"}
+            }
+          },
+          "position": {"x": 2, "y": 4, "width": 2, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi_categories",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_categories", "fields": [{"name": "countdistinct(category)", "expression": "COUNT(DISTINCT `category`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "countdistinct(category)", "displayName": "Equipment categories"}},
+              "frame": {"showTitle": true, "title": "Equipment categories"}
+            }
+          },
+          "position": {"x": 4, "y": 4, "width": 2, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi_products",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_categories", "fields": [{"name": "sum(product_pages)", "expression": "SUM(`product_pages`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(product_pages)",
+                  "displayName": "Machine product pages",
+                  "format": {"type": "number", "abbreviation": "compact", "decimalPlaces": {"type": "max", "places": 1}}
+                }
+              },
+              "frame": {"showTitle": true, "title": "Machine product pages"}
+            }
+          },
+          "position": {"x": 6, "y": 4, "width": 2, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi_electric",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_electric", "fields": [{"name": "count(product_name)", "expression": "COUNT(`product_name`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "count(product_name)", "displayName": "Electric products"}},
+              "frame": {"showTitle": true, "title": "Electric products"}
+            }
+          },
+          "position": {"x": 8, "y": 4, "width": 2, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "kpi_news",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_news", "fields": [{"name": "sum(news_this_year)", "expression": "SUM(`news_this_year`)"}], "disaggregated": false}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {"value": {"fieldName": "sum(news_this_year)", "displayName": "News pages this year"}},
+              "frame": {"showTitle": true, "title": "News pages this year"}
+            }
+          },
+          "position": {"x": 10, "y": 4, "width": 2, "height": 3}
+        },
+        {
+          "widget": {
+            "name": "map_hq",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_locations", "fields": [
+              {"name": "latitude", "expression": "`latitude`"},
+              {"name": "longitude", "expression": "`longitude`"},
+              {"name": "brand", "expression": "`brand`"}
+            ], "disaggregated": true}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "symbol-map",
+              "encodings": {
+                "coordinates": {
+                  "latitude": {"fieldName": "latitude"},
+                  "longitude": {"fieldName": "longitude"}
+                },
+                "color": {"fieldName": "brand", "displayName": "Company", "scale": {"type": "categorical"}}
+              },
+              "mark": {"opacity": 0.9},
+              "frame": {
+                "showTitle": true,
+                "title": "Headquarters",
+                "showDescription": true,
+                "description": "Addresses published on each company's website; hover a pin for the company. Phones are in the table."
+              }
+            }
+          },
+          "position": {"x": 0, "y": 7, "width": 6, "height": 7}
+        },
+        {
+          "widget": {
+            "name": "table_companies",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_company", "fields": [
+              {"name": "brand", "expression": "`brand`"},
+              {"name": "hq_location", "expression": "`hq_location`"},
+              {"name": "phone", "expression": "`phone`"},
+              {"name": "founded", "expression": "`founded`"},
+              {"name": "data_note", "expression": "`data_note`"}
+            ], "disaggregated": true}}],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {"fieldName": "brand", "displayName": "Company"},
+                  {"fieldName": "hq_location", "displayName": "HQ (city, state, ZIP)"},
+                  {"fieldName": "phone", "displayName": "Phone"},
+                  {"fieldName": "founded", "displayName": "Founded"},
+                  {"fieldName": "data_note", "displayName": "Website data"}
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Company directory",
+                "showDescription": true,
+                "description": "As published on each website; founded year as stated by the company"
+              }
+            }
+          },
+          "position": {"x": 6, "y": 7, "width": 6, "height": 7}
+        },
+        {
+          "widget": {
+            "name": "heatmap_portfolio",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_categories", "fields": [
+              {"name": "category", "expression": "`category`"},
+              {"name": "brand", "expression": "`brand`"},
+              {"name": "sum(share_of_company)", "expression": "SUM(`share_of_company`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 3,
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "category",
+                  "displayName": "Equipment category",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {"by": "custom-order", "orderedValues": [
+                      "Mini Excavators", "Excavators", "Skid Steer & Track Loaders", "Backhoe Loaders", "Wheel Loaders",
+                      "Dozers", "Motor Graders", "Haulers & Dump Trucks", "Telehandlers & Material Handling", "Compaction",
+                      "Aerial Work Platforms", "Concrete & Paving", "Drills & Trenchers", "Light & Power Equipment",
+                      "Tractors", "Combines & Harvesting", "Hay & Forage", "Seeding & Tillage", "Sprayers & Crop Care",
+                      "Precision Technology", "Mowers & Turf", "Utility Vehicles", "Forestry & Tree Care",
+                      "Mining Equipment", "Engines & Powertrain"
+                    ]}
+                  },
+                  "axis": {"hideTitle": true}
+                },
+                "y": {"fieldName": "brand", "displayName": "Company", "scale": {"type": "categorical"}, "axis": {"hideTitle": true}},
+                "color": {
+                  "fieldName": "sum(share_of_company)",
+                  "displayName": "Share of the company's product pages",
+                  "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential", "colors": {"start": "#DCEBF5", "end": "#0072B2"}}},
+                  "format": {"type": "number-percent", "decimalPlaces": {"type": "max", "places": 0}}
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Product portfolio: who makes what",
+                "showDescription": true,
+                "description": "Share of each company's machine product pages in each category (construction → agriculture → turf → forestry → mining). Attachments excluded."
+              }
+            }
+          },
+          "position": {"x": 0, "y": 14, "width": 12, "height": 8}
+        },
+        {
+          "widget": {
+            "name": "bar_electric",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_electric", "fields": [
+              {"name": "brand", "expression": "`brand`"},
+              {"name": "count(product_name)", "expression": "COUNT(`product_name`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "brand", "displayName": "Company", "scale": {"type": "categorical", "sort": {"by": "value"}}, "axis": {"hideTitle": true}},
+                "y": {"fieldName": "count(product_name)", "displayName": "Electric products", "scale": {"type": "quantitative"}},
+                "label": {"show": true}
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Electric & battery products",
+                "showDescription": true,
+                "description": "Product pages about electric or battery machines"
+              }
+            }
+          },
+          "position": {"x": 0, "y": 22, "width": 5, "height": 7}
+        },
+        {
+          "widget": {
+            "name": "heatmap_tech",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_tech", "fields": [
+              {"name": "theme", "expression": "`theme`"},
+              {"name": "brand", "expression": "`brand`"},
+              {"name": "sum(share_of_pages)", "expression": "SUM(`share_of_pages`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 3,
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "theme",
+                  "displayName": "Theme",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {"by": "custom-order", "orderedValues": [
+                      "Electric & Battery", "Autonomy", "Telematics & Connectivity", "GPS & Precision",
+                      "Alternative Fuels", "Emissions", "Sustainability"
+                    ]}
+                  },
+                  "axis": {"hideTitle": true}
+                },
+                "y": {"fieldName": "brand", "displayName": "Company", "scale": {"type": "categorical"}, "axis": {"hideTitle": true}},
+                "color": {
+                  "fieldName": "sum(share_of_pages)",
+                  "displayName": "Pages mentioning the theme",
+                  "scale": {"type": "quantitative", "colorRamp": {"mode": "custom-sequential", "colors": {"start": "#FCEBDD", "end": "#D55E00"}}},
+                  "format": {"type": "number-percent", "decimalPlaces": {"type": "max", "places": 0}}
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Technology focus",
+                "showDescription": true,
+                "description": "Share of each company's scraped pages that mention the theme. Companies whose pages have too little text are not shown."
+              }
+            }
+          },
+          "position": {"x": 5, "y": 22, "width": 7, "height": 7}
+        },
+        {
+          "widget": {
+            "name": "line_news",
+            "queries": [{"name": "main_query", "query": {"datasetName": "ds_news", "fields": [
+              {"name": "year_start", "expression": "`year_start`"},
+              {"name": "brand", "expression": "`brand`"},
+              {"name": "sum(news_pages)", "expression": "SUM(`news_pages`)"}
+            ], "disaggregated": false}}],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {"fieldName": "year_start", "displayName": "Year", "scale": {"type": "temporal"}, "axis": {"hideTitle": true}},
+                "y": {"fieldName": "sum(news_pages)", "displayName": "News pages", "scale": {"type": "quantitative"}},
+                "color": {"fieldName": "brand", "displayName": "Company", "scale": {"type": "categorical"}}
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "News activity per year",
+                "showDescription": true,
+                "description": "News pages per year, from the year in each news page address. Companies without dated news addresses are not shown."
+              }
+            }
+          },
+          "position": {"x": 0, "y": 29, "width": 8, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "notes",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### About this data\n",
+                "\n",
+                "All values come from each company's US website, scraped by the equipment_companies_pipeline job. ",
+                "Some websites block automated visits or build their pages with JavaScript, so those companies have partial or no data. The **Website data** column in the company directory says which.\n",
+                "\n",
+                "Counts reflect pages published on each website, not sales or the number of models in production."
+              ]
+            }
+          },
+          "position": {"x": 8, "y": 29, "width": 4, "height": 6}
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "canvasBackgroundColor": {"light": "#F7F8FA", "dark": "#1F272D"},
+      "widgetBackgroundColor": {"light": "#FFFFFF", "dark": "#11171C"},
+      "fontColor": {"light": "#11171C", "dark": "#E8ECF0"},
+      "selectionColor": {"light": "#2272B4", "dark": "#8ACAFF"},
+      "visualizationColors": ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#D55E00", "#56B4E9", "#F0E442", "#999999"],
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}

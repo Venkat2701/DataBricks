@@ -23,6 +23,24 @@ resources:
           environment_key: scraping
           timeout_seconds: 3600
 
+        - task_key: silver_contacts
+          description: Pick each company's address, phone and founded year from the scraped pages and add map coordinates
+          depends_on:
+            - task_key: silver_scrape
+          spark_python_task:
+            python_file: ../src/silver/company_contacts.py
+          environment_key: scraping
+          timeout_seconds: 900
+
+        - task_key: gold_build
+          description: Clean the silver data and build the dashboard tables in equipmentcompanies.gold
+          depends_on:
+            - task_key: silver_contacts
+          spark_python_task:
+            python_file: ../src/gold/build_gold.py
+          environment_key: default
+          timeout_seconds: 1800
+
       environments:
         - environment_key: default
           spec:

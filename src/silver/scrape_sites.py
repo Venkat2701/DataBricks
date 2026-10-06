@@ -5,7 +5,10 @@ Visits each company website listed in the bronze table and writes three tables:
   silver.site_urls      every US English page address found in the site's sitemap
                         (or by following links when a site has no sitemap)
   silver.site_pages     content of up to MAX_PAGES_PER_SITE key pages per company:
-                        the start page, then product pages, then about pages
+                        the start page, then contact/about pages, then product
+                        pages, then the rest; plus the phone numbers and US
+                        addresses found anywhere on each page (header and
+                        footer included), for company_contacts.py
   silver.scrape_status  one row per company describing how the scrape went
 
 Follows robots.txt, waits between requests to the same site and does not try to
@@ -41,6 +44,7 @@ SILVER_SCHEMA = "equipmentcompanies.silver"
 
 MAX_PAGES_PER_SITE = 100
 MAX_PRODUCT_PAGES = 80
+MAX_CONTACT_PAGES = 10
 MAX_SITEMAP_FILES = 150
 SITE_TIME_LIMIT_SECONDS = 20 * 60
 REQUEST_TIMEOUT_SECONDS = 20
@@ -49,7 +53,9 @@ MAX_DELAY_SECONDS = 10.0
 MAX_CONSECUTIVE_FAILURES = 5
 EMPTY_PAGE_WORDS = 20
 EMPTY_PAGES_BEFORE_SKIP = 10
-MAX_TEXT_CHARS = 10_000
+MAX_TEXT_CHARS = 50_000
+MAX_CONTACTS_PER_PAGE = 20
+CONTACT_CONTEXT_CHARS = 80
 MAX_JSON_LD_BLOCKS = 3
 MAX_JSON_LD_CHARS = 10_000
 JS_RENDERED_MEDIAN_WORDS = 50
@@ -72,6 +78,38 @@ URL_BLOCK_RE = re.compile(r"<(?:\w+:)?url>(.*?)</(?:\w+:)?url>", re.S)
 DOCUMENT_RE = re.compile(r"\.(pdf|jpe?g|png|gif|svg|webp|zip|docx?|xlsx?|pptx?|mp4|mp3)$")
 # "(?<!re)" so ordinary pages mentioning a reCAPTCHA-protected form are not flagged.
 CAPTCHA_RE = re.compile(r"(?<!re)captcha|are you a robot|verify you are human|access denied|request unsuccessful", re.I)
+
+# Pages that usually carry the company address and main phone number.
+CONTACT_PAGE_RE = re.compile(r"(?:^|[/_-])(contact\w*|locations?|headquarters?|head-office|corporate\w*|about\w*|who-we-are|our-company)(?:[/_.-]|$)")
+CONTACT_PAGE_FIRST_RE = re.compile(r"contact|location|headquarter|head-office")
+NOT_CONTACT_PAGE_RE = re.compile(r"dealer|careers?|jobs?|news|press|blog")
+
+US_STATES = {
+    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+    "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "District of Columbia": "DC",
+    "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL",
+    "Indiana": "IN", "Iowa": "IA", "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA",
+    "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN",
+    "Mississippi": "MS", "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
+    "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+    "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK", "Oregon": "OR",
+    "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD",
+    "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA",
+    "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY",
+}
+_STATE_NAMES = "|".join(sorted(map(re.escape, US_STATES), key=len, reverse=True))
+_STATE_CODES = "|".join(sorted(set(US_STATES.values())))
+# "City, ST 12345", "City, State 12345" or "City, State, 12345", with up to four
+# capitalized words before the comma (street words are removed later).
+US_ADDRESS_RE = re.compile(
+    r"\b([A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,3}),?\s+"
+    rf"({_STATE_NAMES}|{_STATE_CODES})[.,]?\s+(\d{{5}})(?:-\d{{4}})?\b")
+# US phone numbers in text need separators, so part numbers and IDs are not picked up.
+PHONE_RE = re.compile(r"(?<![\d-])(?:\+?1[\s.-])?\(?([2-9]\d{2})\)?[\s.-]{1,2}([2-9]\d{2})[\s.-](\d{4})(?![\d-])")
+JSON_LD_PHONE_RE = re.compile(r'"telephone"\s*:\s*"([^"]+)"')
+JSON_LD_POSTAL_RE = re.compile(r'"postalCode"\s*:\s*"(\d{5})')
+JSON_LD_REGION_RE = re.compile(r'"addressRegion"\s*:\s*"([^"]+)"')
+JSON_LD_LOCALITY_RE = re.compile(r'"addressLocality"\s*:\s*"([^"]+)"')
 
 
 def _tokens(*words):
@@ -116,6 +154,13 @@ URL_SCHEMA = T.StructType([
     T.StructField("discovered_at", T.TimestampType()),
 ])
 
+# A phone number or address found on a page. source: text, tel_link or json_ld.
+CONTACT_SCHEMA = T.StructType([
+    T.StructField("value", T.StringType()),
+    T.StructField("context", T.StringType()),
+    T.StructField("source", T.StringType()),
+])
+
 PAGE_SCHEMA = T.StructType([
     T.StructField("serial_no", T.StringType()),
     T.StructField("company_name", T.StringType()),
@@ -134,6 +179,8 @@ PAGE_SCHEMA = T.StructType([
     T.StructField("body_text", T.StringType()),
     T.StructField("word_count", T.IntegerType()),
     T.StructField("json_ld", T.ArrayType(T.StringType())),
+    T.StructField("contact_phones", T.ArrayType(CONTACT_SCHEMA)),
+    T.StructField("contact_addresses", T.ArrayType(CONTACT_SCHEMA)),
     T.StructField("internal_link_count", T.IntegerType()),
     T.StructField("scraped_at", T.TimestampType()),
 ])
@@ -278,10 +325,56 @@ def clip(text, limit):
     return text[:limit] if text else None
 
 
+def format_phone(digits):
+    digits = re.sub(r"\D", "", digits)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) != 10 or digits[0] in "01" or digits[3] in "01":
+        return None
+    return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+
+
+def find_contacts(text, links, json_ld):
+    """Phone numbers and US addresses on a page, each with some surrounding text."""
+    phones, addresses = {}, {}
+
+    def context(m):
+        # The match is wrapped in [[ ]] so readers can tell it apart from its surroundings.
+        before = text[max(0, m.start() - CONTACT_CONTEXT_CHARS):m.start()]
+        return f"{before}[[{m.group(0)}]]{text[m.end():m.end() + CONTACT_CONTEXT_CHARS]}"
+
+    for m in PHONE_RE.finditer(text):
+        phone = format_phone(m.group(0))
+        if phone:
+            phones.setdefault(phone, (phone, context(m), "text"))
+    for link in links:
+        if link.lower().startswith("tel:"):
+            phone = format_phone(link[4:])
+            if phone:
+                phones.setdefault(phone, (phone, link, "tel_link"))
+    for m in US_ADDRESS_RE.finditer(text):
+        city, state, zip_code = m.group(1), US_STATES.get(m.group(2), m.group(2)), m.group(3)
+        value = f"{city}, {state} {zip_code}"
+        addresses.setdefault(value, (value, context(m), "text"))
+    for block in json_ld:
+        for raw in JSON_LD_PHONE_RE.findall(block):
+            phone = format_phone(raw)
+            if phone:
+                phones.setdefault(phone, (phone, clip(block, 300), "json_ld"))
+        postal, region = JSON_LD_POSTAL_RE.search(block), JSON_LD_REGION_RE.search(block)
+        if postal and region:
+            locality = JSON_LD_LOCALITY_RE.search(block)
+            state = US_STATES.get(region.group(1), region.group(1))
+            value = f"{locality.group(1) if locality else ''}, {state} {postal.group(1)}".lstrip(", ")
+            addresses.setdefault(value, (value, clip(block, 300), "json_ld"))
+    return list(phones.values())[:MAX_CONTACTS_PER_PAGE], list(addresses.values())[:MAX_CONTACTS_PER_PAGE]
+
+
 def scrape_page(fetcher, url):
     page = {"url": url, "final_url": None, "http_status": None, "fetch_status": "error",
             "error": None, "title": None, "meta_description": None, "h1": None,
-            "headings": [], "body_text": None, "word_count": 0, "json_ld": [], "links": []}
+            "headings": [], "body_text": None, "word_count": 0, "json_ld": [],
+            "contact_phones": [], "contact_addresses": [], "links": []}
     try:
         resp = fetcher.get(url)
     except requests.RequestException as e:
@@ -307,14 +400,20 @@ def scrape_page(fetcher, url):
     page["meta_description"] = clip(meta.get("content") if meta else None, 1000)
     h1 = soup.find("h1")
     page["h1"] = clip(h1.get_text(" ") if h1 else None, 500)
-    json_ld = (clip(s.get_text(), MAX_JSON_LD_CHARS)
-               for s in soup.find_all("script", attrs={"type": "application/ld+json"}))
-    page["json_ld"] = [j for j in json_ld if j][:MAX_JSON_LD_BLOCKS]
+    json_ld = [j for j in (clip(s.get_text(), MAX_JSON_LD_CHARS)
+                           for s in soup.find_all("script", attrs={"type": "application/ld+json"})) if j]
+    page["json_ld"] = json_ld[:MAX_JSON_LD_BLOCKS]
     page["links"] = [urljoin(resp.url, a["href"]) for a in soup.find_all("a", href=True)]
 
-    # Keep the main content only: drop scripts, menus, headers and footers.
-    for tag in soup(["script", "style", "noscript", "svg", "iframe", "template",
-                     "nav", "header", "footer", "form"]):
+    # Contact details usually sit in the header or footer, so look for them in
+    # all visible text before those parts are removed below.
+    for tag in soup(["script", "style", "noscript", "svg", "template"]):
+        tag.decompose()
+    page["contact_phones"], page["contact_addresses"] = find_contacts(
+        clip(soup.get_text(" "), 10**7) or "", page["links"], json_ld)
+
+    # Keep the main content only: drop menus, headers, footers and forms.
+    for tag in soup(["iframe", "nav", "header", "footer", "form"]):
         tag.decompose()
     root = soup.find("main") or soup.body or soup
     page["headings"] = [h for h in (clip(e.get_text(" "), 300) for e in root.find_all(["h2", "h3"])) if h][:50]
@@ -411,13 +510,27 @@ def scrape_site(company):
             for row in urls.values():
                 enqueue(row)
 
+        # Contact, locations and about pages go first: they carry the company's
+        # address and main phone number, and product pages would crowd them out.
+        contact_rows = sorted(
+            (r for r in urls.values()
+             if r["page_type"] not in ("home", "document")
+             and CONTACT_PAGE_RE.search(r["relative_path"])
+             and not NOT_CONTACT_PAGE_RE.search(r["relative_path"])),
+            key=lambda r: (0 if CONTACT_PAGE_FIRST_RE.search(r["relative_path"]) else 1, r["depth"], r["url"]),
+        )[:MAX_CONTACT_PAGES]
+
+        def next_rows():
+            yield from contact_rows
+            while queue:  # re-checked each time: following links adds to the queue
+                yield urls[url_key(heapq.heappop(queue)[2])]
+
         visited, products, failures = {start_key}, 0, 0
         empty_streak, skipped_types, notes = {}, [], []
-        while queue and len(pages) < MAX_PAGES_PER_SITE and time.monotonic() < deadline:
-            _, _, url = heapq.heappop(queue)
-            key = url_key(url)
-            row = urls[key]
-            page_type = row["page_type"]
+        for row in next_rows():
+            if len(pages) >= MAX_PAGES_PER_SITE or time.monotonic() >= deadline:
+                break
+            url, key, page_type = row["url"], url_key(row["url"]), row["page_type"]
             if (key in visited or page_type in skipped_types
                     or (page_type == "product" and products >= MAX_PRODUCT_PAGES)):
                 continue

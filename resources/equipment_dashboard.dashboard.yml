@@ -1,0 +1,7 @@
+resources:
+  dashboards:
+    equipment_companies_dashboard:
+      display_name: Equipment Companies Dashboard
+      file_path: ../src/dashboard/equipment_companies.lvdash.json
+      # Serverless Starter Warehouse
+      warehouse_id: 38dfe64819487879
