@@ -1,0 +1,14 @@
+# Databricks Asset Bundle: deploys the equipment companies pipeline as a job.
+# Deploy:  databricks bundle deploy
+# Run:     databricks bundle run equipment_companies_pipeline
+bundle:
+  name: equipment_companies
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    default: true
+    workspace:
+      host: https://dbc-c0dead6e-f16f.cloud.databricks.com

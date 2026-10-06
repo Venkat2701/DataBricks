@@ -1,0 +1,20 @@
+resources:
+  jobs:
+    equipment_companies_pipeline:
+      name: equipment_companies_pipeline
+      description: >-
+        Medallion pipeline for the US equipment companies dashboard:
+        landing volume -> bronze -> silver -> gold.
+      max_concurrent_runs: 1
+
+      tasks:
+        - task_key: bronze_ingest
+          description: Load the landing CSV into equipmentcompanies.bronze.equipment_companies
+          spark_python_task:
+            python_file: ../src/bronze/landing_to_bronze.py
+          environment_key: default
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"

@@ -1,0 +1,7 @@
+# Databricks CLI / bundle local state
+.databricks/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
