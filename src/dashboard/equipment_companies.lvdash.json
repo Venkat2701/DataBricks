@@ -78,7 +78,7 @@
             "name": "subtitle",
             "multilineTextboxSpec": {
               "lines": [
-                "15 US equipment manufacturers, compared using what their own websites publish. ",
+                "US equipment manufacturers, compared using what their own websites publish. ",
                 "Data: equipmentcompanies.gold, built by the equipment_companies_pipeline job."
               ]
             }
@@ -246,28 +246,36 @@
               }
             }
           },
-          "position": {"x": 0, "y": 7, "width": 6, "height": 7}
+          "position": {"x": 0, "y": 7, "width": 5, "height": 7}
         },
         {
           "widget": {
             "name": "table_companies",
             "queries": [{"name": "main_query", "query": {"datasetName": "ds_company", "fields": [
               {"name": "brand", "expression": "`brand`"},
+              {"name": "website", "expression": "`website`"},
               {"name": "hq_location", "expression": "`hq_location`"},
               {"name": "phone", "expression": "`phone`"},
               {"name": "founded", "expression": "`founded`"},
               {"name": "data_note", "expression": "`data_note`"}
             ], "disaggregated": true}}],
             "spec": {
-              "version": 2,
+              "version": 1,
               "widgetType": "table",
+              "allowHTMLByDefault": false,
+              "condensed": true,
+              "withRowNumber": false,
+              "itemsPerPage": 25,
+              "paginationSize": "default",
+              "invisibleColumns": [],
               "encodings": {
                 "columns": [
-                  {"fieldName": "brand", "displayName": "Company"},
-                  {"fieldName": "hq_location", "displayName": "HQ (city, state, ZIP)"},
-                  {"fieldName": "phone", "displayName": "Phone"},
-                  {"fieldName": "founded", "displayName": "Founded"},
-                  {"fieldName": "data_note", "displayName": "Website data"}
+                  {"fieldName": "brand", "displayName": "Company", "title": "Company", "type": "string", "displayAs": "string", "order": 100000, "visible": true, "alignContent": "left", "allowHTML": false, "allowSearch": false, "highlightLinks": false, "preserveWhitespace": false, "useMonospaceFont": false, "booleanValues": ["false", "true"], "imageUrlTemplate": "{{ @ }}", "imageTitleTemplate": "{{ @ }}", "imageWidth": "", "imageHeight": "", "linkUrlTemplate": "{{ @ }}", "linkTextTemplate": "{{ @ }}", "linkTitleTemplate": "{{ @ }}", "linkOpenInNewTab": true},
+                  {"fieldName": "website", "displayName": "Website", "title": "Website", "type": "string", "displayAs": "link", "order": 100001, "visible": true, "alignContent": "left", "allowHTML": false, "allowSearch": false, "highlightLinks": false, "preserveWhitespace": false, "useMonospaceFont": false, "booleanValues": ["false", "true"], "imageUrlTemplate": "{{ @ }}", "imageTitleTemplate": "{{ @ }}", "imageWidth": "", "imageHeight": "", "linkUrlTemplate": "{{ @ }}", "linkTextTemplate": "{{ @ }}", "linkTitleTemplate": "Open {{ @ }} in a new tab", "linkOpenInNewTab": true},
+                  {"fieldName": "hq_location", "displayName": "HQ (city, state, ZIP)", "title": "HQ (city, state, ZIP)", "type": "string", "displayAs": "string", "order": 100002, "visible": true, "alignContent": "left", "allowHTML": false, "allowSearch": false, "highlightLinks": false, "preserveWhitespace": false, "useMonospaceFont": false, "booleanValues": ["false", "true"], "imageUrlTemplate": "{{ @ }}", "imageTitleTemplate": "{{ @ }}", "imageWidth": "", "imageHeight": "", "linkUrlTemplate": "{{ @ }}", "linkTextTemplate": "{{ @ }}", "linkTitleTemplate": "{{ @ }}", "linkOpenInNewTab": true},
+                  {"fieldName": "phone", "displayName": "Phone", "title": "Phone", "type": "string", "displayAs": "string", "order": 100003, "visible": true, "alignContent": "left", "allowHTML": false, "allowSearch": false, "highlightLinks": false, "preserveWhitespace": false, "useMonospaceFont": false, "booleanValues": ["false", "true"], "imageUrlTemplate": "{{ @ }}", "imageTitleTemplate": "{{ @ }}", "imageWidth": "", "imageHeight": "", "linkUrlTemplate": "{{ @ }}", "linkTextTemplate": "{{ @ }}", "linkTitleTemplate": "{{ @ }}", "linkOpenInNewTab": true},
+                  {"fieldName": "founded", "displayName": "Founded", "title": "Founded", "type": "string", "displayAs": "string", "order": 100004, "visible": true, "alignContent": "left", "allowHTML": false, "allowSearch": false, "highlightLinks": false, "preserveWhitespace": false, "useMonospaceFont": false, "booleanValues": ["false", "true"], "imageUrlTemplate": "{{ @ }}", "imageTitleTemplate": "{{ @ }}", "imageWidth": "", "imageHeight": "", "linkUrlTemplate": "{{ @ }}", "linkTextTemplate": "{{ @ }}", "linkTitleTemplate": "{{ @ }}", "linkOpenInNewTab": true},
+                  {"fieldName": "data_note", "displayName": "Website data", "title": "Website data", "type": "string", "displayAs": "string", "order": 100005, "visible": true, "alignContent": "left", "allowHTML": false, "allowSearch": false, "highlightLinks": false, "preserveWhitespace": false, "useMonospaceFont": false, "booleanValues": ["false", "true"], "imageUrlTemplate": "{{ @ }}", "imageTitleTemplate": "{{ @ }}", "imageWidth": "", "imageHeight": "", "linkUrlTemplate": "{{ @ }}", "linkTextTemplate": "{{ @ }}", "linkTitleTemplate": "{{ @ }}", "linkOpenInNewTab": true}
                 ]
               },
               "frame": {
@@ -278,7 +286,7 @@
               }
             }
           },
-          "position": {"x": 6, "y": 7, "width": 6, "height": 7}
+          "position": {"x": 5, "y": 7, "width": 7, "height": 7}
         },
         {
           "widget": {
@@ -300,7 +308,7 @@
                     "sort": {"by": "custom-order", "orderedValues": [
                       "Mini Excavators", "Excavators", "Skid Steer & Track Loaders", "Backhoe Loaders", "Wheel Loaders",
                       "Dozers", "Motor Graders", "Haulers & Dump Trucks", "Telehandlers & Material Handling", "Compaction",
-                      "Aerial Work Platforms", "Concrete & Paving", "Drills & Trenchers", "Light & Power Equipment",
+                      "Aerial Work Platforms", "Cranes", "Concrete & Paving", "Drills & Trenchers", "Light & Power Equipment",
                       "Tractors", "Combines & Harvesting", "Hay & Forage", "Seeding & Tillage", "Sprayers & Crop Care",
                       "Precision Technology", "Mowers & Turf", "Utility Vehicles", "Forestry & Tree Care",
                       "Mining Equipment", "Engines & Powertrain"

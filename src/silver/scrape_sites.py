@@ -312,6 +312,12 @@ def read_sitemaps(fetcher, sitemap_urls, deadline):
         if "<sitemapindex" in xml:
             queue.extend(LOC_RE.findall(xml))
             continue
+        if "<urlset" not in xml:
+            # Plain-text sitemap: one address per line (allowed by the sitemap standard).
+            for line in xml.splitlines():
+                if line.strip().startswith("http"):
+                    entries.setdefault(line.strip(), None)
+            continue
         for block in URL_BLOCK_RE.findall(xml):
             loc = LOC_RE.search(block)
             if loc:

@@ -17,7 +17,7 @@ most common ones so new rules can be added here.
 
 NOT_PRODUCT = (
     r"compare|comparison|spec-check|testing-page|legal|financ|(^|/)parts(/|$)|offers?(/|$)|"
-    r"promotion|warranty|build-and-price|inventory|(^|/)used|register-used|prior-models|non-current|"
+    r"promotion|warranty|build-and-price|inventory|(^|/)used|used-equipment|register-used|prior-models|non-current|"
     r"brochure|dealer|find-a|request-a|quote|demo(/|$)|government|military|"
     r"power-gard|protection-plan|digital-products|rental-resources|we-drill|(^|/)features(/|$)"
 )
@@ -27,7 +27,8 @@ CATEGORY_RULES = [
     # Checked first: these words also appear inside machine category names.
     # products-and-solutions/loaders: John Deere's front loaders for tractors.
     ("Attachments", "Attachments", r"attachment|accessor|(^|[/-])(blades?|buckets?)(/|$)|products-and-solutions/loaders"),
-    ("Engines & Powertrain", "Other", r"engine|drivetrain|powertrain|agco-power|pump-drive"),
+    # "engine-powered" describes machines (e.g. JLG engine-powered scissor lifts), not engines.
+    ("Engines & Powertrain", "Other", r"^(?!.*engine-powered).*(engine|drivetrain|powertrain|agco-power|pump-drive)"),
     ("Hay & Forage", "Agriculture", r"vertical-mixer|feed-mixer"),  # livestock feed mixers, not concrete
 
     ("Forestry & Tree Care", "Forestry", r"forest|feller|forwarder|skidder|log-loader|logging|timber|"
@@ -35,7 +36,10 @@ CATEGORY_RULES = [
     ("Mining Equipment", "Mining", r"mining|shovel|dragline|longwall|continuous-miner|blasthole|room-and-pillar|"
                                    r"bolter|underground|shaft-sinking|entry-development|hard-rock|industrial-minerals|crush|"
                                    r"haul-truck|surface-drill"),
-    ("Drills & Trenchers", "Construction", r"directional-drill|trencher|vacuum-excavat|horizontal-directional"),
+    ("Drills & Trenchers", "Construction", r"directional-drill|trencher|vacuum-excavat|horizontal-directional|"
+                                           r"trenchless|hdd-tooling"),
+    # (^|/)krupp: Manitowoc's Krupp all-terrain and truck-mounted crane lines.
+    ("Cranes", "Construction", r"crane|boom-truck|carry-deck|(^|/)krupp(/|$)"),
 
     ("Mini Excavators", "Construction", r"mini-excavator|compact-excavator|mini-ex(/|-|$)"),
     ("Excavators", "Construction", r"excavator|high-reach"),
@@ -48,7 +52,8 @@ CATEGORY_RULES = [
     ("Haulers & Dump Trucks", "Construction", r"hauler|dump-truck|dumper|dumpster|(^|/)trucks(/|$)"),
     # Tillage rollers are not compaction equipment.
     ("Compaction", "Construction", r"^(?!.*(tillage|seed|planter)).*(compaction|compactor|roller|vibratory|rammer)"),
-    ("Aerial Work Platforms", "Construction", r"aerial|boom-lift|articulated-boom|telescopic-boom|scissor|digger-derrick"),
+    ("Aerial Work Platforms", "Construction", r"aerial|boom-lift|articulated-boom|telescopic-boom|scissor|digger-derrick|"
+                                              r"vertical-lift|low-level-access|stock-picker|mast-lift"),
     ("Concrete & Paving", "Construction", r"concrete|paver|paving|asphalt|mixer|road-build|(^|/)(advance|bid-well)(/|$)"),
     ("Light & Power Equipment", "Construction", r"light-tower|lighting|generator|power-supply|portable-power|"
                                                 r"compressor|pump|heater"),
@@ -72,7 +77,7 @@ CATEGORY_RULES = [
 CATEGORY_ORDER = [
     "Mini Excavators", "Excavators", "Skid Steer & Track Loaders", "Backhoe Loaders", "Wheel Loaders",
     "Dozers", "Motor Graders", "Haulers & Dump Trucks", "Telehandlers & Material Handling", "Compaction",
-    "Aerial Work Platforms", "Concrete & Paving", "Drills & Trenchers", "Light & Power Equipment",
+    "Aerial Work Platforms", "Cranes", "Concrete & Paving", "Drills & Trenchers", "Light & Power Equipment",
     "Tractors", "Combines & Harvesting", "Hay & Forage", "Seeding & Tillage", "Sprayers & Crop Care",
     "Precision Technology", "Mowers & Turf", "Utility Vehicles", "Forestry & Tree Care", "Mining Equipment",
     "Engines & Powertrain", "Attachments",

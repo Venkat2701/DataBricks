@@ -56,10 +56,12 @@ DATA_NOTES = {
 }
 
 
-# Legal or regional suffixes dropped to get a short brand name for chart labels:
-# "Kubota Tractor Corporation" -> "Kubota", "JCB North America" -> "JCB".
+# Legal or regional words dropped to get a short brand name for chart labels:
+# "Kubota Tractor Corporation" -> "Kubota", "JCB North America" -> "JCB",
+# "The Toro Company" -> "Toro", "Manitowoc Cranes" -> "Manitowoc".
+BRAND_PREFIX = r"^The\s+"
 BRAND_SUFFIX = (r"\s+(Construction Equipment|Construction Machinery|Tractor Corporation|North America|"
-                r"America|Corporation|Company|Agriculture|Inc\.?|LLC)$")
+                r"America|Corporation|Company|Industries|Cranes|Agriculture|Inc\.?|LLC)$")
 
 
 def clean(col):
@@ -89,7 +91,7 @@ def companies(spark):
     return spark.table(f"{BRONZE}.equipment_companies").select(
         F.col("serial_no").cast("int").alias("serial_no"),
         name.alias("company_name"),
-        F.regexp_replace(name, BRAND_SUFFIX, "").alias("brand"),
+        F.regexp_replace(F.regexp_replace(name, BRAND_PREFIX, ""), BRAND_SUFFIX, "").alias("brand"),
         F.lower(clean(F.col("company_site_url"))).alias("website"),
     )
 

@@ -72,6 +72,7 @@ CONTACTS_SCHEMA = T.StructType([
     T.StructField("founded_year", T.IntegerType()),
     T.StructField("founded_source_url", T.StringType()),
     T.StructField("geocoded_place", T.StringType()),
+    T.StructField("geocoded_city", T.StringType()),
     T.StructField("updated_at", T.TimestampType()),
 ])
 
@@ -176,8 +177,11 @@ def previous_locations(spark):
             return {}
     except Exception:  # catalog lookups are not essential; just geocode again
         return {}
-    rows = spark.table(CONTACTS_TABLE).where("latitude IS NOT NULL").collect()
-    return {(r.state, r.zip): (r.latitude, r.longitude, r.city, r.geocoded_place) for r in rows}
+    table = spark.table(CONTACTS_TABLE)
+    if "geocoded_city" not in table.columns:  # saved before that column existed
+        return {}
+    rows = table.where("latitude IS NOT NULL").collect()
+    return {(r.state, r.zip): (r.latitude, r.longitude, r.geocoded_city, r.geocoded_place) for r in rows}
 
 
 def main():
@@ -226,10 +230,14 @@ def main():
                     print(f"Geocoding failed for {company.company_name} ({state} {zip_code}): {e}")
             latitude, longitude, geo_city, place = location or (None, None, None, None)
             # The website's own city name; the ZIP lookup's city is only a fallback
-            # (one ZIP can cover several towns).
+            # (one ZIP can cover several towns). If the scraped name is the looked-up
+            # city plus a leftover word from the street ("Lyndale Avenue South,
+            # Bloomington" -> "South Bloomington"), the looked-up city wins.
             city = clean_city(parsed["city"]) or geo_city or parsed["city"]
+            if geo_city and city != geo_city and city.endswith(" " + geo_city):
+                city = geo_city
             row.update(hq_address=f"{city}, {state} {zip_code}", city=city, state=state, zip=zip_code,
-                       latitude=latitude, longitude=longitude, geocoded_place=place,
+                       latitude=latitude, longitude=longitude, geocoded_place=place, geocoded_city=geo_city,
                        address_match=address["match"], address_source_url=address["url"],
                        address_context=address["context"])
         if phone:

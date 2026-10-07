@@ -1,8 +1,8 @@
 # Equipment Companies Dashboard
 
-A Databricks pipeline that collects data about 15 US equipment companies and
-feeds a dashboard. Data moves through the medallion layers in the
-`equipmentcompanies` catalog:
+A Databricks pipeline that collects data about US equipment companies (20 in
+`US_Equipment_Companies.csv`) and feeds a dashboard. Data moves through the
+medallion layers in the `equipmentcompanies` catalog:
 
 | Layer   | Location                                                   | Contents                                  |
 |---------|------------------------------------------------------------|-------------------------------------------|
@@ -24,9 +24,11 @@ src/silver/company_contacts.py             Scraped pages -> address, phone, foun
 src/gold/build_gold.py                     Silver -> cleaned dashboard tables in gold
 src/gold/categories.py                     Standard equipment categories and their matching rules
 src/dashboard/equipment_companies.lvdash.json  The Databricks AI/BI dashboard
+docs/Equipment_Companies_Dashboard_Project_Documentation.md  Project documentation
 ```
 
-The job runs `bronze_ingest` -> `silver_scrape` -> `silver_contacts` -> `gold_build`.
+The job runs `bronze_ingest` -> `silver_scrape` -> `silver_contacts` ->
+`gold_build` -> `dashboard_refresh`.
 
 ## Bronze table
 
@@ -53,8 +55,9 @@ website and writes:
 | `silver.scrape_status` | company                    | `status`, `message`, `urls_found`, `pages_ok`, `pages_failed`, `median_word_count` |
 | `silver.company_contacts` | company                 | `hq_address`, `phone`, `founded_year`, `latitude`, `longitude`, `*_match`, `*_source_url` |
 
-- Page addresses come from each site's sitemap. Sites without a sitemap are
-  explored by following links from the start page.
+- Page addresses come from each site's sitemap (XML, compressed XML or a
+  plain-text list). Sites without a sitemap are explored by following links
+  from the start page.
 - `page_type` is one of `home`, `product`, `about`, `parts_service`, `news`,
   `dealer`, `careers`, `document`, `other`, worked out from the address.
 - Pages are scraped in this order: start page, contact/locations/about pages
@@ -80,13 +83,18 @@ website and writes:
   on to other page types. `scrape_status.message` says when this happened.
 - Per-site settings (US section of the site, product page addresses, pages to
   skip) are in `src/silver/site_rules.py`. Companies without an entry are
-  scraped from their bronze URL with default settings.
+  scraped from their bronze URL with default settings, which takes the whole
+  site (all countries and languages); add an entry after their first run.
+- Websites change: if a company's `urls_found` suddenly drops (as Volvo CE's did
+  when its US section moved to `/en-us/`), check its `base_url` in
+  `site_rules.py`.
 
 ## Gold tables
 
 `src/gold/build_gold.py` cleans the silver data and builds one table per
 dashboard need. Every table has `company_name` and a short `brand`
-("Kubota Tractor Corporation" -> "Kubota") used in charts and filters.
+("Kubota Tractor Corporation" -> "Kubota", "The Toro Company" -> "Toro") used
+in charts and filters.
 
 | Table                     | One row per                  | Main columns                                                              |
 |---------------------------|------------------------------|---------------------------------------------------------------------------|
@@ -99,7 +107,7 @@ dashboard need. Every table has `company_name` and a short `brand`
 Cleaning applied: pages that redirected to another website and pages that
 repeat another page's text are dropped; compare/finance/parts/offer pages
 listed under product sections are dropped; names are trimmed and normalized.
-Each product page is given one of ~25 standard categories (`categories.py`);
+Each product page is given one of 27 standard categories (`categories.py`);
 the job log lists the most common pages left without a category so new rules
 can be added. Technology themes are only counted for companies with at least
 20 pages of text (`has_data`).
@@ -111,7 +119,8 @@ reads only the gold tables, on the Serverless Starter Warehouse:
 
 1. KPI tiles: companies, HQs found, equipment categories, product pages,
    electric products, news pages this year
-2. Headquarters map, with a company directory (HQ, phone, founded, data status)
+2. Headquarters map, with a company directory (website link, HQ, phone,
+   founded, data status)
 3. Product portfolio heatmap: company x equipment category
 4. Electric and battery products per company
 5. Technology focus heatmap: company x theme
@@ -120,7 +129,11 @@ reads only the gold tables, on the Serverless Starter Warehouse:
 Filters: Company (all widgets) and Segment (portfolio and electric charts).
 The dashboard is defined in `src/dashboard/equipment_companies.lvdash.json`
 and deployed with the bundle; edits made in the Databricks UI are overwritten
-by the next `bundle deploy` unless copied back into that file.
+by the next `bundle deploy` unless copied back into that file. The job's last
+task, `dashboard_refresh`, refreshes the dashboard after every successful run,
+so it always shows the latest gold data. The company directory table uses the
+version 1 table format, because its link setting (`displayAs: link`, open in
+a new tab) is what makes the Website column clickable.
 
 ## Deploy and run
 
@@ -130,11 +143,17 @@ Requires the [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.
 databricks auth login --host https://dbc-c0dead6e-f16f.cloud.databricks.com
 databricks bundle deploy
 databricks bundle run equipment_companies_pipeline
-# rebuild only contacts and gold from the last scrape:
+# rebuild only contacts, gold and the dashboard from the last scrape:
 databricks bundle run equipment_companies_pipeline --only "silver_contacts+"
+# rebuild only gold and the dashboard:
+databricks bundle run equipment_companies_pipeline --only "gold_build+"
 ```
 
 The job, `equipment_companies_pipeline`, then appears under
 **Jobs & Pipelines** and can also be run from there. It runs on serverless
-compute and has no schedule. A full run takes about 15 minutes, mostly the
-polite (1 request per second) website scraping.
+compute and has no schedule. A full run takes about 20 minutes, mostly the
+polite website scraping (at least 1 second between requests per site; one site
+asks for 10 seconds in its robots.txt).
+
+To add companies, add rows to the CSV (same headers, new serial numbers), upload
+it to the landing volume replacing the old file, and run the job.

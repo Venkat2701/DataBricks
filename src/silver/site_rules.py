@@ -78,8 +78,9 @@ SITE_RULES = {
         "exclude": r"^[a-z]{2}(-[a-z]{2})?(/|$)",
     },
     "volvoce.com": {
-        # The site root is a country chooser.
-        "base_url": "https://www.volvoce.com/united-states/en-us/",
+        # The site root is a country chooser. The US section moved from
+        # /united-states/en-us/ to /en-us/ in October 2026.
+        "base_url": "https://www.volvoce.com/en-us/",
         "product_pattern": r"^(products|attachments)(/|$)",
         "category_segment": 1,
     },
@@ -104,5 +105,33 @@ SITE_RULES = {
         "base_url": "https://na.develon-ce.com/en/",
         "product_pattern": r"^construction-equipment(/|$)",
         "category_segment": 1,
+    },
+    "jlg.com": {
+        # robots.txt lists 20 country sitemaps; /en/ is the English (US) section.
+        # directaccess is a parts-ordering portal, not product information.
+        "base_url": "https://www.jlg.com/en/",
+        "exclude": r"^directaccess(/|$)",
+        "product_pattern": r"^equipment(/|$)",
+        "category_segment": 1,
+    },
+    "manitowoc.com": {
+        # English pages have no language prefix; other languages are under /de/, /fr/, ...
+        # Products are grouped by crane brand: /grove/..., /potain/..., /national-crane/...
+        "base_url": "https://www.manitowoc.com/",
+        "exclude": r"^(de|fr|es|pt|it|ru|ko|zh)(/|$)|^find-a-dealer(/|$)",
+        "product_pattern": r"^(grove|potain|national-crane|manitowoc|krupp|shuttlelift)(/|$)",
+        "category_segment": 1,
+    },
+    "toro.com": {
+        # The homepage redirects to /en; the sitemap is a plain text list of addresses.
+        "base_url": "https://www.toro.com/en/",
+    },
+    "ditchwitch.com": {
+        # Most sitemap entries are uploaded images and files under /wp-content/.
+        "base_url": "https://www.ditchwitch.com/",
+        "exclude": r"^wp-content(/|$)",
+        "product_pattern": r"^(trenchers|vacuum-excavation|directional-drills|stand-on-skid-steers|"
+                           r"trenchless|hdd-tooling|vacs)(/|$)",
+        "category_segment": 0,
     },
 }
